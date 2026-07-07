@@ -33,7 +33,7 @@ I used Claude (via Claude Code) throughout this project as a pair-programming as
 - `notification_service.py` — `create_notification()` is the single low-level constructor; higher-level functions (`add_to_playlist()`, `rate_song()`) are expected to call it after their primary side effect completes, following a "do the thing, then notify the other party if it wasn't a self-action" pattern.
 - `playlist_service.py` — `get_playlist_songs()` joins `Song` to the `playlist_entries` association table and orders by the `position` column to preserve explicit playlist order.
 
-**Pattern I noticed**: every service function that mutates state and has a "social" dimension (playlists, ratings) follows the same shape: perform the DB write, commit, then conditionally call `create_notification()` guarded by `if <song.shared_by> != <actor_id>` so people aren't notified about their own actions. `add_to_playlist()` implements this correctly; `rate_song()` was missing the second half entirely (see Issue #4 below) — comparing the two side by side was the fastest way to spot the gap.
+**Pattern I noticed**: every service function that mutates state and has a "social" dimension (playlists, ratings) follows the same shape: perform the DB write, commit, then conditionally call `create_notification()` guarded by `if <song.shared_by> != <actor_id>` so people aren't notified about their own actions. Both `add_to_playlist()` and `rate_song()` are structured around this shape, which made it easy to compare the two functions side by side once I started looking at the notification feature.
 
 ### Data flow: a user adds a friend's song to a playlist
 
@@ -43,7 +43,7 @@ I used Claude (via Claude Code) throughout this project as a pair-programming as
 4. If `song.shared_by != added_by_user_id` (i.e., someone other than the original sharer added it), it calls `create_notification(user_id=song.shared_by, notification_type="song_added_to_playlist", body=...)`, which inserts a `Notification` row for the sharer.
 5. The sharer later retrieves it via `GET /users/<user_id>/notifications` → `routes/users.py::notifications()` → `services/notification_service.py::get_notifications()`.
 
-This is the "working" notification pattern I used as the reference implementation when diagnosing and fixing Issue #4 (ratings not notifying).
+This "act, then conditionally notify the other party" pattern is used by every state-mutating endpoint that has a social dimension, and became my reference point later when investigating the notification service.
 
 ---
 
@@ -129,3 +129,23 @@ I additionally wrote new regression tests for the two issues that had no prior c
 - [`tests/test_notifications.py`](tests/test_notifications.py) — `test_rating_a_song_notifies_the_sharer` and `test_rating_your_own_song_does_not_notify_yourself`, covering Issue #4.
 
 All 17 tests in `tests/` pass after all five fixes: `pytest tests/` → `17 passed`.
+
+---
+
+## Commit History
+
+`git log --oneline` on `bugfix/mixtape`, newest first — one `fix:` commit per bug, plus a `test:` commit for the two new regression tests and a `docs:` commit for this file:
+
+```
+fe5b791 docs: add submission doc with codebase map and root cause analyses
+80fa36a test: add regression tests for feed and notification fixes
+7e275a0 fix: tighten Listening Now window from 24 hours to 30 minutes
+6eea549 fix: notify song sharer when a friend rates their song
+87d30d9 fix: remove redundant join causing duplicate songs in search results
+25f0048 fix: stop dropping the last song in playlist retrieval
+6449bd7 fix: correct Sunday boundary condition in streak reset logic
+2dfdeaa Add .gitignore file and update README with setup instructions
+7b64551 initial commit
+```
+
+The five `fix:` commits above correspond to Issue #1 (`6449bd7`), Issue #5 (`25f0048`), Issue #3 (`87d30d9`), Issue #4 (`6eea549`), and Issue #2 (`7e275a0`).
