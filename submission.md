@@ -148,4 +148,8 @@ fe5b791 docs: add submission doc with codebase map and root cause analyses
 7b64551 initial commit
 ```
 
+Screenshot from GitHub of the same branch:
+
+![Commit history on bugfix/mixtape](Commit-History.png)
+
 The five `fix:` commits above correspond to Issue #1 (`6449bd7`), Issue #5 (`25f0048`), Issue #3 (`87d30d9`), Issue #4 (`6eea549`), and Issue #2 (`7e275a0`).
